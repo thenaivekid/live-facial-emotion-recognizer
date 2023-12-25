@@ -2,56 +2,30 @@ import cv2
 import numpy as np
 import imutils
 import time
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.models import load_model
 from imutils.video import VideoStream
-import os
-import math
-import sys
-from threading import Timer
-import shutil
 import time
-import keras
-import numpy as np
-import pandas as pd
-from keras.models import model_from_json
-import csv
+from utils import detect_and_predict_face
 
 
 
-def detect_and_predict_face(frame, faceNet, face_emotion_model, threshold):
-    global detections
-    (h, w) = frame.shape[:2]
-    blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), (104.0, 177.0, 123.0))
-    faceNet.setInput(blob)
-    detections = faceNet.forward()
-
-    faces = []
-    locs = []
-    preds = []
-
-    for i in range(0, detections.shape[2]):
-        confidence = detections[0, 0, i, 2]
-        if confidence > threshold:
-            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-            (startX, startY, endX, endY) = box.astype("int")
-            (startX, startY) = (max(0, startX), max(0, startY))
-            (endX, endY) = (min(w - 1, endX), min(h - 1, endY))
-            face = frame[startY:endY, startX:endX]
-            face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
-            face = cv2.resize(face, (224, 224))
-            face = img_to_array(face)
-            face = preprocess_input(face)
-            face = np.expand_dims(face, axis=0)
-            locs.append((startX, startY, endX, endY))
-            preds.append(face_emotion_model.predict(face)[0].tolist())
-
-    return (locs, preds)
 
 
-MASK_MODEL_PATH = r'C:\Users\Acer\codes\live_fer\face\model\emotion_model.h5'
 THRESHOLD = 0.5
+model = 0
+if model == 0:
+    emotion_model = r"face\model\emotion_model.h5"
+    labels = ["happy", "neutral", "sad"]
+    IMG_SIZE = (224, 224)
+    COLOR_TRANSFORMER = cv2.COLOR_BGR2RGB
+
+else:
+    emotion_model = "fer_model_from_scratch.h5"
+    labels = ['surprise', 'fear', 'angry', 'neutral', 'sad', 'disgust', 'happy']
+    IMG_SIZE = (48, 48)
+    COLOR_TRANSFORMER = cv2.COLOR_BGR2GRAY
+
+
 
 print("[INFO] loading face detector model...")
 prototxtPath = r'C:\Users\Acer\codes\live_fer\face\face_detector\deploy.prototxt'
@@ -59,13 +33,11 @@ weightsPath = r'C:\Users\Acer\codes\live_fer\face\face_detector\res10_300x300_ss
 faceNet = cv2.dnn.readNet(prototxtPath, weightsPath)
 
 print("[INFO] loading emotion detector model...")
-face_emotion_model = load_model(MASK_MODEL_PATH)
+face_emotion_model = load_model(emotion_model)
 
 print("[INFO] starting video stream...")
 vs = VideoStream(0).start()
 time.sleep(2.0)
-
-labels = ["happy", "neutral", "sad"]
 
 while True:
     frame = vs.read()
@@ -73,8 +45,7 @@ while True:
     original_frame = frame.copy()
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-    (locs, preds) = detect_and_predict_face(frame, faceNet, face_emotion_model, THRESHOLD)
-        
+    (locs, preds) = detect_and_predict_face(frame, faceNet, face_emotion_model, THRESHOLD, IMG_SIZE, COLOR_TRANSFORMER)
     for (box, pred) in zip(locs, preds):
         (startX, startY, endX, endY) = box
         label = str(labels[np.argmax(pred)])
